@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Sunset Isles — Island Hopper</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #7ec8f7; font-family: "Trebuchet MS", Verdana, Arial, sans-serif; }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff;
+    text-shadow: 0 2px 6px rgba(0,0,0,.55); }
+  .chip { background: rgba(8, 28, 44, .55); border: 2px solid rgba(255,255,255,.75);
+    border-radius: 12px; padding: 8px 14px; }
+  .num { font-size: 38px; font-weight: 900; line-height: 1; letter-spacing: 1px; }
+  .lbl { font-size: 15px; font-weight: 700; letter-spacing: 2px; opacity: .9; }
+  .unit { font-size: 16px; font-weight: 700; opacity: .85; }
+  #flight { position: absolute; top: 14px; left: 14px; display: flex; gap: 10px; }
+  #flight .chip { min-width: 108px; text-align: center; }
+  #mission { position: absolute; top: 14px; right: 14px; text-align: right; min-width: 260px; }
+  #mission .name { font-size: 24px; font-weight: 900; }
+  #mission .obj { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  #mission .timer { font-size: 30px; font-weight: 900; margin-top: 2px; }
+  #compass { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 900; padding: 6px 18px; }
+  #compass .hdg { color: #ffd94d; }
+  #meters { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .bar { width: 230px; height: 22px; background: rgba(0,0,0,.45); border: 2px solid #fff;
+    border-radius: 11px; overflow: hidden; }
+  .bar > div { height: 100%; }
+  #fuelFill { background: linear-gradient(90deg, #37d67a, #a5e635); width: 100%; }
+  #dmgFill { background: linear-gradient(90deg, #f59e0b, #ef4444); width: 0%; }
+  #thrFill { background: linear-gradient(90deg, #38bdf8, #facc15); width: 0%; }
+  #score { position: absolute; right: 14px; bottom: 14px; text-align: right; }
+  #score .num { font-size: 34px; }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 15px; font-weight: 700; background: rgba(8,28,44,.45); border-radius: 8px;
+    padding: 5px 12px; white-space: nowrap; }
+  #banner { position: absolute; top: 34%; left: 0; right: 0; text-align: center;
+    font-size: 84px; font-weight: 900; letter-spacing: 4px; display: none;
+    text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.5); }
+  #banner small { display: block; font-size: 30px; letter-spacing: 1px; margin-top: 6px; }
+  #banner.good { color: #7CFC9A; }
+  #banner.bad { color: #ff5a4e; }
+  #banner.info { color: #ffd94d; }
+  #menu { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; pointer-events: auto;
+    background: linear-gradient(180deg, rgba(10,40,70,.25), rgba(10,40,70,.55)); }
+  #menu h1 { margin: 0; font-size: 64px; font-weight: 900; color: #fff; letter-spacing: 2px;
+    text-shadow: 0 4px 0 rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.55); }
+  #menu h2 { margin: 0; font-size: 26px; font-weight: 800; color: #ffd94d; }
+  #menu p { margin: 0; font-size: 19px; font-weight: 700; color: #fff; max-width: 640px;
+    text-align: center; line-height: 1.45; }
+  .btn { pointer-events: auto; cursor: pointer; font-family: inherit; font-size: 24px;
+    font-weight: 900; color: #08324a; background: #ffd94d; border: 3px solid #fff;
+    border-radius: 14px; padding: 12px 30px; box-shadow: 0 6px 0 rgba(0,0,0,.3); }
+  .btn:hover { background: #ffe27a; }
+  .btn.ghost { background: rgba(255,255,255,.9); color: #08324a; font-size: 19px; padding: 9px 20px; }
+  #missionRow { display: flex; gap: 10px; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(255,255,255,.35) 100%);
+    transition: opacity .3s; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+<div id="hud">
+  <div id="flight">
+    <div class="chip"><div class="lbl">ALTITUDE</div><div><span class="num" id="alt">0</span> <span class="unit">m</span></div></div>
+    <div class="chip"><div class="lbl">SPEED</div><div><span class="num" id="spd">0</span> <span class="unit">km/h</span></div></div>
+    <div class="chip"><div class="lbl">HEADING</div><div><span class="num" id="hdg">090</span><span class="unit" id="hdgLetter"> E</span></div></div>
+  </div>
+  <div id="compass" class="chip">HDG <span class="hdg" id="compassHdg">090&deg;</span> &nbsp;|&nbsp; <span id="compassNext">NEXT RING 120m</span></div>
+  <div id="mission" class="chip">
+    <div class="name" id="missionName">RING RUN</div>
+    <div class="obj" id="missionObj">Fly through ring 1 of 6</div>
+    <div class="timer" id="missionTimer"></div>
+  </div>
+  <div id="meters">
+    <div><div class="lbl">FUEL</div><div class="bar"><div id="fuelFill"></div></div></div>
+    <div><div class="lbl">DAMAGE</div><div class="bar"><div id="dmgFill"></div></div></div>
+    <div><div class="lbl">THROTTLE</div><div class="bar"><div id="thrFill"></div></div></div>
+  </div>
+  <div id="score" class="chip"><div class="lbl">SCORE</div><div class="num" id="scoreNum">0</div></div>
+  <div id="hint">Arrows / WASD fly &nbsp;&middot;&nbsp; SHIFT throttle up &nbsp;&middot;&nbsp; CTRL throttle down &nbsp;&middot;&nbsp; R restart &nbsp;&middot;&nbsp; P pause</div>
+  <div id="banner"></div>
+  <div id="menu">
+    <h1>SUNSET ISLES</h1>
+    <h2>ISLAND HOPPER</h2>
+    <p>Fly your little red seaplane over a bright tropical archipelago. Thread the golden
+    rings, mind your fuel, and bring her home on the runway in one piece.</p>
+    <div id="missionRow">
+      <button class="btn" data-mission="0">1 &middot; RING RUN</button>
+      <button class="btn" data-mission="1">2 &middot; ISLAND DASH</button>
+      <button class="btn" data-mission="2">3 &middot; RUNWAY LANDING</button>
+      <button class="btn ghost" data-mission="3">FREE FLY</button>
+    </div>
+    <p>Arrows steer &middot; W/S pitch &middot; SHIFT / CTRL throttle &middot; land gently on the strip</p>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
